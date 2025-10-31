@@ -1,0 +1,6 @@
+{
+    "package": "three",
+    "version": "",
+    "outDir": "c:/tmp/three",
+    "externalizeBareImports": true
+}
