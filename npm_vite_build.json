@@ -1,6 +1,6 @@
 {
-    "package": "three",
+    "package": "tauri-kargo-website",
     "version": "",
-    "outDir": "c:/tmp/three",
+    "outDir": "c:/tmp/tauri-kargo-website",
     "externalizeBareImports": true
 }

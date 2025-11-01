@@ -1,6 +1,7 @@
 #!/usr/bin/env -S deno run -A
 // Lit config depuis ./npm_vite_build.json, télécharge le tgz npm, extrait,
 // puis lance Vite build sur tous les HTML (réécrit *.ts -> *.js).
+
 import { join, resolve } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { ensureDir, emptyDir, walk } from "https://deno.land/std@0.224.0/fs/mod.ts";
 import { UntarStream } from "jsr:@std/tar/untar-stream";
@@ -118,9 +119,20 @@ async function main() {
       emptyOutDir: false,
       rollupOptions: {
         input: htmlInputs.length ? htmlInputs : undefined,
-        // Externaliser les imports "bare" si demandé (évite d'installer les deps du paquet).
+        // Externaliser uniquement les imports "bare" (ex: "react"), pas les chemins relatifs/absolus/URL/HTML/virtuels.
         ...(cfg.externalizeBareImports ? {
-          external: (id: string) => !id.startsWith(".") && !id.startsWith("/"),
+          external: (id: string) => {
+            // ne jamais externaliser les modules virtuels Rollup ni les HTML
+            if (id.startsWith("\0") || /\.html?$/i.test(id)) return false;
+
+            const isRelative = id.startsWith("./") || id.startsWith("../");
+            const isAbsPosix = id.startsWith("/");
+            const isAbsWin = /^[A-Za-z]:[\\/]/.test(id);
+            const isUrl = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(id); // http:, https:, data:, node:, etc.
+
+            // external UNIQUEMENT pour les bare specifiers (ni relatifs, ni absolus, ni URL)
+            return !(isRelative || isAbsPosix || isAbsWin || isUrl);
+          },
         } : {}),
         output: {
           entryFileNames: (chunk) => {
