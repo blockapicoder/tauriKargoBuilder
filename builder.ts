@@ -1,8 +1,9 @@
 #!/usr/bin/env -S deno run -A
 // Lit config depuis ./npm_vite_build.json, télécharge le tgz npm, extrait,
 // puis lance Vite build sur tous les HTML (réécrit *.ts -> *.js).
+// Ensuite, copie tous les fichiers .json tels quels dans le outDir en conservant les chemins.
 
-import { join, resolve } from "https://deno.land/std@0.224.0/path/mod.ts";
+import { join, resolve, dirname } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { ensureDir, emptyDir, walk } from "https://deno.land/std@0.224.0/fs/mod.ts";
 import { UntarStream } from "jsr:@std/tar/untar-stream";
 import { build as viteBuild } from "npm:vite@5.4.10";
@@ -64,6 +65,22 @@ async function extractTgz(tgzBytes: Uint8Array, destDir: string) {
 }
 
 function isHtmlPath(p: string) { return /\.html?$/i.test(p); }
+function isJsonPath(p: string) { return /\.json$/i.test(p); }
+
+async function copyJsonFiles(srcRoot: string, destRoot: string) {
+  let count = 0;
+  for await (const e of walk(srcRoot, { includeDirs: false, followSymlinks: false })) {
+    const rel = e.path.slice(srcRoot.length + 1);
+    if (rel.split(/[\\/]/).includes("node_modules")) continue;
+    if (isJsonPath(e.path)) {
+      const dest = join(destRoot, rel);
+      await ensureDir(dirname(dest));
+      await Deno.copyFile(e.path, dest);
+      count++;
+    }
+  }
+  console.log(`→ Copie JSON : ${count} fichier(s) .json copiés.`);
+}
 
 async function main() {
   const cfg = await readConfig();
@@ -156,6 +173,10 @@ async function main() {
       modulePreload: false,
     },
   });
+
+  // Copie des .json tels quels (après build pour ne pas être effacés par emptyDir)
+  console.log("→ Copie des fichiers .json…");
+  await copyJsonFiles(pkgRoot, OUT_DIR);
 
   console.log(`✅ Fait. Sortie dans: ${OUT_DIR}`);
   console.log(`   Package traité: ${cfg.package}@${version}`);
